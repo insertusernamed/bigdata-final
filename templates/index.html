@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Recommender</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body>
+    <div class="container mt-5">
+        <h1>Movie Recommender System</h1>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Data Generation</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button class="btn btn-primary w-100" onclick="generateData('sample')">
+                                    Generate Sample Dataset
+                                </button>
+                                <div id="sampleStatus" class="mt-2"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-warning w-100" onclick="generateData('full')">
+                                    Generate Full Dataset (Will take at least 5 minutes)
+                                </button>
+                                <div id="fullStatus" class="mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Search Movies</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group mb-3">
+                            <input type="text" id="searchQuery" class="form-control" placeholder="Enter movie title...">
+                            <button class="btn btn-primary" onclick="searchMovies()">Search</button>
+                        </div>
+                        <div id="searchResults"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Similar Movies</h5>
+                    </div>
+                    <div class="card-body" id="recommendationsSection" style="display:none">
+                        <div id="selectedMovie" class="mb-3"></div>
+                        <h6>Similar Movies:</h6>
+                        <div id="similarMoviesResult"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function generateData(type) {
+            const statusDiv = type === 'sample' ? '#sampleStatus' : '#fullStatus';
+            $(statusDiv).html('<div class="alert alert-info">Processing data...</div>');
+
+            $.ajax({
+                url: `/generate/${type}`,
+                method: 'POST',
+                success: function (response) {
+                    $(statusDiv).html(
+                        `<div class="alert alert-success">${response.message}</div>`
+                    );
+                },
+                error: function () {
+                    $(statusDiv).html(
+                        '<div class="alert alert-danger">Error processing data</div>'
+                    );
+                }
+            });
+        }
+
+        function getSimilarMovies(movieId) {
+            if (!movieId) {
+                console.error('No movie ID provided');
+                return;
+            }
+
+            $.get(`/movie/${movieId}`, function (movie) {
+                $('#selectedMovie').html(`
+                    <div class="card">
+                        <div class="card-body">
+                            <h5>${movie.title}</h5>
+                            <p><strong>Director:</strong> ${movie.directedBy}</p>
+                            <p><strong>Starring:</strong> ${movie.starring}</p>
+                            <p><strong>Average Rating:</strong> ${movie.avgRating.toFixed(2)}</p>
+                        </div>
+                    </div>
+                `);
+            }).fail(function () {
+                $('#selectedMovie').html('<div class="alert alert-danger">Error loading movie details</div>');
+            });
+
+            $.get(`/recommend/similar/${movieId}`, function (data) {
+                let html = '<div class="row">';
+                data.recommendations.forEach(movie => {
+                    html += `
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6>${movie.title}</h6>
+                                    <p><small>Director: ${movie.directedBy}</small></p>
+                                    <p><small>Rating: ${movie.avgRating.toFixed(2)}</small></p>
+                                    <p><small>Similarity: ${movie.similarity_score.toFixed(3)}</small></p>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                html += '</div>';
+                $('#similarMoviesResult').html(html);
+                $('#recommendationsSection').show();
+            }).fail(function () {
+                $('#similarMoviesResult').html('<div class="alert alert-danger">Error loading recommendations</div>');
+            });
+        }
+
+        function searchMovies() {
+            const query = $('#searchQuery').val();
+            $.get(`/search?q=${encodeURIComponent(query)}`, function (data) {
+                let html = '<div class="list-group">';
+                data.results.forEach(movie => {
+                    html += `
+                        <a href="#" class="list-group-item list-group-item-action" 
+                           onclick="getSimilarMovies(${movie.item_id})">
+                            <h6>${movie.title}</h6>
+                            <small>Directed by: ${movie.directedBy}</small><br>
+                            <small>Average Rating: ${movie.avgRating.toFixed(2)}</small>
+                        </a>`;
+                });
+                html += '</div>';
+                $('#searchResults').html(html);
+            });
+        }
+    </script>
+</body>
+
+</html>
